@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "recordly-editor": {
+      "command": "node",
+      "args": [
+        "/home/lalitmukesh/Downloads/Recordly/services/recordly-mcp/dist/index.js"
+      ],
+      "disabled": false
+    }
+  }
+}
