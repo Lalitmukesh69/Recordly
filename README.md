@@ -69,6 +69,17 @@ Recordly has a community-driven extension system. Anyone can build and publish e
 
 Browse and install community extensions from the [Recordly Marketplace](https://marketplace.recordly.dev/extensions).
 
+## AI Agent Integration (MCP Server)
+
+Recordly includes a [Model Context Protocol (MCP) server](./docs/mcp-editing-server.md) that lets AI assistants (Antigravity, Claude Desktop, Cursor, Cline, Windsurf) edit `.recordly` video projects through natural language:
+- **Auto-Zoom:** Automatically cluster clicks from cursor telemetry into smooth camera zoom keyframes.
+- **Trimming & Splits:** Cut out silences, bloopers, or pauses at exact millisecond timestamps.
+- **Canvas Reformatting:** Reformat between 16:9 widescreen, 9:16 vertical (Shorts/TikTok/Reels), 1:1, and 4:5.
+- **Subtitles & Captions:** Add, synchronize, and style animated subtitle cues.
+- **Cursor Effects:** Customize virtual pointer scale, smoothing, and click spotlight ripples.
+
+See the [AI Editing MCP Server Guide](./docs/mcp-editing-server.md) for full setup instructions and tool references.
+
 ---
 
 ## All Features
