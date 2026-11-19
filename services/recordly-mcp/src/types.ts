@@ -34,10 +34,24 @@ export interface ClipRegion {
   sourcePath?: string;
   startMs: number;
   endMs: number;
-  timelineStartMs: number;
+  timelineStartMs?: number;
+  sourceStartMs?: number;
+  sourceMinMs?: number;
+  sourceMaxMs?: number;
   speed?: number;
   volume?: number;
   muted?: boolean;
+  showSourceAudio?: boolean;
+}
+
+export interface ZoomMotionBlurTuning {
+  panVelocityThreshold?: number;
+  zoomVelocityThreshold?: number;
+  maxDirectionalBlurPx?: number;
+  maxRadialBlurStrength?: number;
+  panResponsePerSecond?: number;
+  zoomResponsePerSecond?: number;
+  zoomSafeZoneRadiusPx?: number;
 }
 
 export interface SpeedRegion {
@@ -121,6 +135,7 @@ export interface ProjectEditorState {
   shadowIntensity: number;
   backgroundBlur: number;
   zoomMotionBlur: number;
+  zoomMotionBlurTuning?: ZoomMotionBlurTuning;
   connectZooms: boolean;
   zoomInDurationMs: number;
   zoomInOverlapMs: number;
@@ -181,4 +196,57 @@ export interface CursorTelemetryPoint {
 export interface CursorTelemetryFile {
   version: number;
   samples: CursorTelemetryPoint[];
+}
+
+export interface VideoReportCut {
+  startMs: number;
+  endMs: number;
+  reason?: string;
+}
+
+export interface VideoReportClick {
+  timestampMs: number;
+  x: number;
+  y: number;
+  label?: string;
+  depth?: ZoomDepth;
+}
+
+export interface VideoReportZoom {
+  startMs: number;
+  endMs: number;
+  focusX: number;
+  focusY: number;
+  depth?: ZoomDepth;
+  mode?: ZoomMode;
+}
+
+export interface VideoReportPayload {
+  cuts?: VideoReportCut[];
+  clicks?: VideoReportClick[];
+  zooms?: VideoReportZoom[];
+  motionBlur?: {
+    zoomMotionBlur?: number;
+    cursorMotionBlur?: number;
+    tuning?: Partial<ZoomMotionBlurTuning>;
+  };
+  cursorEffect?: {
+    showCursor?: boolean;
+    cursorStyle?: CursorStyle;
+    cursorSize?: number;
+    clickEffect?: CursorClickEffectStyle;
+    clickEffectColor?: string;
+  };
+  canvas?: {
+    wallpaper?: string;
+    backgroundBlur?: number;
+    shadowIntensity?: number;
+    borderRadius?: number;
+    aspectRatio?: AspectRatio;
+  };
+  captions?: Array<{
+    startMs: number;
+    endMs: number;
+    text: string;
+  }>;
 }
