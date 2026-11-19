@@ -121,6 +121,14 @@ Add a new stdio server:
 
 ---
 
+### 🚀 Automated Report-Based Editing & Cutting
+| Tool Name | Parameters | Description |
+| :--- | :--- | :--- |
+| `recordly_apply_video_report` | `projectPath: string`, `cuts?: object[]`, `clicks?: object[]`, `zooms?: object[]`, `motionBlur?: object`, `cursorEffect?: object`, `canvas?: object` | **Instant end-to-end editing from a structured report:** cuts sensitive footage, generates smooth auto-zooms for clicks, adds cinematic motion blur, configures blue spotlight ripple effects, and formats canvas in a single fast call. |
+| `recordly_cut_range` | `projectPath: string`, `startMs: number`, `endMs: number`, `reason?: string` | Cuts and removes a specific time range from the video, slices clips, ripples zooms, and updates trim gaps. |
+
+---
+
 ### ✂️ Timeline & Clip Editing
 | Tool Name | Parameters | Description |
 | :--- | :--- | :--- |
@@ -162,6 +170,7 @@ Add a new stdio server:
 | `recordly_set_canvas_background` | `projectPath: string`, `wallpaper?: string`, `backgroundBlur?: number`, `shadowIntensity?: number` | Configures gradient presets (e.g., `'aurora'`, `'mesh-gradient-1'`), solid colors, blur, and drop shadow. |
 | `recordly_set_canvas_layout` | `projectPath: string`, `aspectRatio?: string`, `padding?: number \| object`, `borderRadius?: number` | Changes aspect ratio (`16:9`, `9:16` vertical, `1:1`, `4:5`), screen padding margins, and corner roundness. |
 | `recordly_set_cursor_effects` | `projectPath: string`, `showCursor?: boolean`, `cursorStyle?: string`, `cursorSize?: number`, `cursorSmoothing?: number`, `clickEffect?: string`, `clickEffectColor?: string`, `motionBlur?: number`, `clickBounce?: number` | Configures virtual cursor pointer style (`macos`, `windows11`, `tahoe`, `dot`), scale, smoothing, and click ripples (`spotlight`, `ripple`, `echo`). |
+| `recordly_set_motion_blur` | `projectPath: string`, `zoomMotionBlur?: number`, `cursorMotionBlur?: number`, `connectZooms?: boolean` | Configures cinematic motion blur for camera zooms (0 to 2, e.g. 0.5) and cursor movement trails (0 to 1). |
 | `recordly_set_webcam_overlay` | `projectPath: string`, `enabled?: boolean`, `positionPreset?: string`, `size?: number`, `roundness?: number`, `mirror?: boolean` | Adjusts webcam overlay corner/preset (`bottom-right`, etc.), circular roundness, size, and mirror flip. |
 
 ---
