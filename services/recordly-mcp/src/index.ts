@@ -8,6 +8,7 @@ import { registerZoomTools } from "./tools/zoomTools.js";
 import { registerCaptionTools } from "./tools/captionTools.js";
 import { registerCanvasTools } from "./tools/canvasTools.js";
 import { registerProbeTools } from "./tools/probeTools.js";
+import { registerReportTools } from "./tools/reportTools.js";
 
 async function main() {
   const server = new McpServer(
@@ -29,6 +30,7 @@ async function main() {
   registerCaptionTools(server);
   registerCanvasTools(server);
   registerProbeTools(server);
+  registerReportTools(server);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
