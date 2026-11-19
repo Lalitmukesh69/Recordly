@@ -81,14 +81,23 @@ export function registerZoomTools(server: McpServer) {
         .default(2)
         .describe("Zoom intensity depth (1 = 1.25x, 2 = 1.5x, 3 = 1.8x, 4 = 2.2x, 5 = 2.8x, 6 = 3.5x). Default is 2."),
       mode: z.enum(["manual", "auto"]).default("manual").describe("Zoom mode."),
+      motionBlur: z
+        .number()
+        .min(0)
+        .max(2)
+        .optional()
+        .describe("Optional zoom motion blur intensity for this zoom transition."),
     },
-    async ({ projectPath, startMs, endMs, focusX, focusY, depth, mode }) => {
+    async ({ projectPath, startMs, endMs, focusX, focusY, depth, mode, motionBlur }) => {
       try {
         if (endMs <= startMs) {
           throw new Error(`endMs (${endMs}) must be strictly greater than startMs (${startMs}).`);
         }
 
         const data = await loadProject(projectPath);
+        if (motionBlur !== undefined) {
+          data.editor.zoomMotionBlur = motionBlur;
+        }
         const zooms = [...(data.editor.zoomRegions || [])];
 
         const newZoom: ZoomRegion = {
@@ -280,10 +289,19 @@ export function registerZoomTools(server: McpServer) {
         .max(6)
         .default(2)
         .describe("Default zoom depth for suggested zooms (default 2 = 1.5x)."),
+      motionBlur: z
+        .number()
+        .min(0)
+        .max(2)
+        .optional()
+        .describe("Set project zoom motion blur intensity (e.g. 0.5 for realistic cinematic blur)."),
     },
-    async ({ projectPath, applyToProject, replaceExisting, mergeGapMs, depth }) => {
+    async ({ projectPath, applyToProject, replaceExisting, mergeGapMs, depth, motionBlur }) => {
       try {
         const data = await loadProject(projectPath);
+        if (motionBlur !== undefined) {
+          data.editor.zoomMotionBlur = motionBlur;
+        }
         const telemetry = await loadCursorTelemetry(data.videoPath);
 
         if (telemetry.length === 0) {
