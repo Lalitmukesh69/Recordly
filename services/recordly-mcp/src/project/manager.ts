@@ -245,3 +245,16 @@ export async function loadCursorTelemetry(
     return [];
   }
 }
+
+export async function saveCursorTelemetry(
+  videoPath: string,
+  samples: CursorTelemetryPoint[],
+): Promise<string> {
+  const telemetryPath = getTelemetryPathForVideo(videoPath);
+  const payload: CursorTelemetryFile = {
+    version: 1,
+    samples,
+  };
+  await fs.writeFile(telemetryPath, JSON.stringify(payload, null, 2), "utf-8");
+  return telemetryPath;
+}
