@@ -276,4 +276,65 @@ export function registerCanvasTools(server: McpServer) {
       }
     },
   );
+
+  // 5. Set Motion Blur
+  server.tool(
+    "recordly_set_motion_blur",
+    "Configure cinematic motion blur for camera auto-zooms, camera transitions, and rapid cursor movements.",
+    {
+      projectPath: z.string().describe("Path to the .recordly project file."),
+      zoomMotionBlur: z
+        .number()
+        .min(0)
+        .max(2)
+        .optional()
+        .describe("Zoom transition motion blur intensity (0 = disabled, 0.35 = subtle, 0.5 = natural cinematic, 1.0 = prominent)."),
+      cursorMotionBlur: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Cursor movement motion blur trail intensity (0.0 to 1.0)."),
+      connectZooms: z
+        .boolean()
+        .optional()
+        .describe("Whether consecutive zooms smoothly pan between focus points with motion blur."),
+    },
+    async ({ projectPath, zoomMotionBlur, cursorMotionBlur, connectZooms }) => {
+      try {
+        const data = await loadProject(projectPath);
+
+        if (zoomMotionBlur !== undefined) data.editor.zoomMotionBlur = zoomMotionBlur;
+        if (cursorMotionBlur !== undefined) data.editor.cursorMotionBlur = cursorMotionBlur;
+        if (connectZooms !== undefined) data.editor.connectZooms = connectZooms;
+
+        await saveProject(projectPath, data);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  message: "Motion blur settings updated successfully.",
+                  settings: {
+                    zoomMotionBlur: data.editor.zoomMotionBlur ?? 0.5,
+                    cursorMotionBlur: data.editor.cursorMotionBlur ?? 0,
+                    connectZooms: data.editor.connectZooms ?? true,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Error updating motion blur: ${String(error)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 }
