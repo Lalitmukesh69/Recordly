@@ -10,9 +10,16 @@ function recalculateTimelinePositions(clips: ClipRegion[]): ClipRegion[] {
     const durationMs = Math.max(0, clip.endMs - clip.startMs);
     const speed = clip.speed && clip.speed > 0 ? clip.speed : 1;
     const effectiveDurationMs = Math.round(durationMs / speed);
+    const sourceStartMs = clip.sourceStartMs ?? clip.startMs;
     const updated: ClipRegion = {
       ...clip,
+      sourceStartMs,
+      startMs: currentTimelineMs,
+      endMs: currentTimelineMs + durationMs,
       timelineStartMs: currentTimelineMs,
+      speed,
+      muted: clip.muted ?? false,
+      showSourceAudio: clip.showSourceAudio ?? false,
     };
     currentTimelineMs += effectiveDurationMs;
     return updated;
@@ -45,7 +52,7 @@ export function registerTimelineTools(server: McpServer) {
             id: c.id,
             sourceRange: `${(c.startMs / 1000).toFixed(2)}s - ${(c.endMs / 1000).toFixed(2)}s`,
             sourceDurationSec: (duration / 1000).toFixed(2),
-            timelineStartSec: (c.timelineStartMs / 1000).toFixed(2),
+            timelineStartSec: (((c.timelineStartMs ?? c.startMs)) / 1000).toFixed(2),
             speed,
             volume: c.volume ?? 1,
             muted: c.muted ?? false,
@@ -292,7 +299,7 @@ export function registerTimelineTools(server: McpServer) {
                   message: "Clips reordered successfully.",
                   sequence: data.editor.clipRegions.map((c) => ({
                     id: c.id,
-                    timelineStartSec: (c.timelineStartMs / 1000).toFixed(2),
+                    timelineStartSec: (((c.timelineStartMs ?? c.startMs)) / 1000).toFixed(2),
                   })),
                 },
                 null,
@@ -354,6 +361,154 @@ export function registerTimelineTools(server: McpServer) {
       } catch (error) {
         return {
           content: [{ type: "text", text: `Error updating clip properties: ${String(error)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // 7. Cut Range (Remove unwanted footage)
+  server.tool(
+    "recordly_cut_range",
+    "Cut and remove a specific time segment from the video (e.g. sensitive data, mistakes, pauses, or recorder HUD interactions). Slices clips, adjusts timeline offsets, and records the trim gap.",
+    {
+      projectPath: z.string().describe("Path to the .recordly project file."),
+      startMs: z.number().describe("Source start time in milliseconds where the cut begins."),
+      endMs: z.number().describe("Source end time in milliseconds where the cut ends."),
+      reason: z.string().optional().describe("Optional note for what was removed."),
+    },
+    async ({ projectPath, startMs, endMs, reason }) => {
+      try {
+        if (endMs <= startMs) {
+          throw new Error(`endMs (${endMs}) must be strictly greater than startMs (${startMs}).`);
+        }
+
+        const data = await loadProject(projectPath);
+        let clips = [...(data.editor.clipRegions || [])];
+
+        // If no clips yet, initialize one full-length clip from 0 to endMs
+        if (clips.length === 0) {
+          clips = [
+            {
+              id: "clip-1",
+              startMs: 0,
+              endMs: Math.max(endMs + 10000, 60000),
+              sourceStartMs: 0,
+              speed: 1,
+            },
+          ];
+        }
+
+        const nextClips: ClipRegion[] = [];
+        for (const clip of clips) {
+          const clipSrcStart = clip.sourceStartMs ?? clip.startMs;
+          const clipDuration = clip.endMs - clip.startMs;
+          const clipSrcEnd = clipSrcStart + clipDuration;
+
+          // Case 1: Cut is completely before or after this clip
+          if (endMs <= clipSrcStart || startMs >= clipSrcEnd) {
+            nextClips.push(clip);
+            continue;
+          }
+
+          // Case 2: Cut completely encompasses this clip -> omit
+          if (startMs <= clipSrcStart && endMs >= clipSrcEnd) {
+            continue;
+          }
+
+          // Case 3: Cut splits this clip into two pieces
+          if (startMs > clipSrcStart && endMs < clipSrcEnd) {
+            const firstDuration = startMs - clipSrcStart;
+            const secondDuration = clipSrcEnd - endMs;
+
+            nextClips.push({
+              ...clip,
+              id: randomUUID(),
+              startMs: clip.startMs,
+              endMs: clip.startMs + firstDuration,
+              sourceStartMs: clipSrcStart,
+            });
+
+            nextClips.push({
+              ...clip,
+              id: randomUUID(),
+              startMs: clip.startMs + firstDuration,
+              endMs: clip.startMs + firstDuration + secondDuration,
+              sourceStartMs: endMs,
+            });
+            continue;
+          }
+
+          // Case 4: Cut overlaps start of clip
+          if (startMs <= clipSrcStart && endMs < clipSrcEnd) {
+            const remainingDuration = clipSrcEnd - endMs;
+            nextClips.push({
+              ...clip,
+              sourceStartMs: endMs,
+              endMs: clip.startMs + remainingDuration,
+            });
+            continue;
+          }
+
+          // Case 5: Cut overlaps end of clip
+          if (startMs > clipSrcStart && endMs >= clipSrcEnd) {
+            const remainingDuration = startMs - clipSrcStart;
+            nextClips.push({
+              ...clip,
+              endMs: clip.startMs + remainingDuration,
+            });
+            continue;
+          }
+        }
+
+        data.editor.clipRegions = recalculateTimelinePositions(nextClips);
+
+        // Update trimRegions
+        const existingTrims = [...(data.editor.trimRegions || [])];
+        existingTrims.push({
+          id: `trim-gap-${randomUUID().slice(0, 8)}`,
+          startMs: Math.round(startMs),
+          endMs: Math.round(endMs),
+        });
+        existingTrims.sort((a, b) => a.startMs - b.startMs);
+        data.editor.trimRegions = existingTrims;
+
+        // Ripple zoom regions: drop zooms in the cut, adjust zooms after the cut
+        const cutDuration = endMs - startMs;
+        const currentZooms = [...(data.editor.zoomRegions || [])];
+        data.editor.zoomRegions = currentZooms
+          .filter((z) => !(z.startMs >= startMs && z.endMs <= endMs))
+          .map((z) => (z.startMs >= endMs ? { ...z, startMs: z.startMs - cutDuration, endMs: z.endMs - cutDuration } : z));
+
+        await saveProject(projectPath, data);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  message: `Cut applied successfully from ${startMs}ms to ${endMs}ms.`,
+                  reason,
+                  remainingClipsCount: data.editor.clipRegions.length,
+                  totalTimelineDurationSec: (
+                    (data.editor.clipRegions[data.editor.clipRegions.length - 1]?.endMs ?? 0) / 1000
+                  ).toFixed(2),
+                  clips: data.editor.clipRegions.map((c) => ({
+                    id: c.id,
+                    timelineRange: `${(c.startMs / 1000).toFixed(2)}s - ${(c.endMs / 1000).toFixed(2)}s`,
+                    sourceRange: `${((c.sourceStartMs ?? 0) / 1000).toFixed(2)}s - ${(((c.sourceStartMs ?? 0) + (c.endMs - c.startMs)) / 1000).toFixed(2)}s`,
+                  })),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Error applying cut range: ${String(error)}` }],
           isError: true,
         };
       }
