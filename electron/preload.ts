@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { RecordingSessionData } from "./ipc/types";
 
 type NativeVideoExportWriteResult = { success: boolean; error?: string };
@@ -738,6 +738,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	},
 	openAudioFilePicker: () => {
 		return ipcRenderer.invoke("open-audio-file-picker");
+	},
+	approveAudioFilePath: (filePath: string) => {
+		return ipcRenderer.invoke("approve-audio-file-path", filePath);
+	},
+	getPathForFile: (file: File) => {
+		try {
+			return webUtils.getPathForFile(file);
+		} catch {
+			return (file as unknown as { path?: string }).path ?? "";
+		}
 	},
 	openWhisperExecutablePicker: () => {
 		return ipcRenderer.invoke("open-whisper-executable-picker");

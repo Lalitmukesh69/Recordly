@@ -305,43 +305,68 @@ export function EditorShell(props: Props) {
 						library.setOpen(false);
 				}}
 				onDragOver={(event) => {
-					if (event.dataTransfer.types.includes(RECORDING_DRAG_TYPE)) {
+					if (
+						event.dataTransfer.types.includes(RECORDING_DRAG_TYPE) ||
+						event.dataTransfer.types.includes("Files")
+					) {
 						event.preventDefault();
 						event.dataTransfer.dropEffect = "copy";
 					}
 				}}
 				onDrop={(event) => {
 					const path = event.dataTransfer.getData(RECORDING_DRAG_TYPE);
-					if (!path) return;
-					event.preventDefault();
-					event.stopPropagation();
-					const timelinePanel = (event.target as HTMLElement).closest(
-						"[data-timeline-panel]",
-					);
-					let index: number | undefined;
-					if (timelinePanel) {
-						const clips = [
-							...timelinePanel.querySelectorAll<HTMLElement>(
-								'[data-timeline-item][data-variant="clip"]',
-							),
-						].sort((a, b) => Number(a.dataset.startMs) - Number(b.dataset.startMs));
-						index = clips.findIndex((clip) => {
-							const rect = clip.getBoundingClientRect();
-							return event.clientX < rect.left + rect.width / 2;
-						});
-						if (index < 0) index = clips.length;
+					if (path) {
+						event.preventDefault();
+						event.stopPropagation();
+						const timelinePanel = (event.target as HTMLElement).closest(
+							"[data-timeline-panel]",
+						);
+						let index: number | undefined;
+						if (timelinePanel) {
+							const clips = [
+								...timelinePanel.querySelectorAll<HTMLElement>(
+									'[data-timeline-item][data-variant="clip"]',
+								),
+							].sort((a, b) => Number(a.dataset.startMs) - Number(b.dataset.startMs));
+							index = clips.findIndex((clip) => {
+								const rect = clip.getBoundingClientRect();
+								return event.clientX < rect.left + rect.width / 2;
+							});
+							if (index < 0) index = clips.length;
+						}
+						let paths: unknown;
+						try {
+							paths = JSON.parse(path);
+						} catch {
+							paths = [path];
+						}
+						if (
+							Array.isArray(paths) &&
+							paths.every((value) => typeof value === "string" && value.length > 0)
+						)
+							void library.addToTimeline(paths, index);
+						return;
 					}
-					let paths: unknown;
-					try {
-						paths = JSON.parse(path);
-					} catch {
-						paths = [path];
+
+					if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+						const file = event.dataTransfer.files[0];
+						const audioExtensions = [".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg"];
+						const fileName = file.name?.toLowerCase() ?? "";
+						const isAudio =
+							audioExtensions.some((ext) => fileName.endsWith(ext)) ||
+							file.type?.startsWith("audio/");
+						if (isAudio) {
+							event.preventDefault();
+							event.stopPropagation();
+							const filePath =
+								(typeof window !== "undefined" && window.electronAPI?.getPathForFile
+									? window.electronAPI.getPathForFile(file)
+									: "") || (file as unknown as { path?: string }).path;
+							if (filePath) {
+								void ui.timelineRef.current?.addAudio(undefined, filePath);
+							}
+						}
 					}
-					if (
-						Array.isArray(paths) &&
-						paths.every((value) => typeof value === "string" && value.length > 0)
-					)
-						void library.addToTimeline(paths, index);
 				}}
 			>
 				<div className="relative z-10 flex min-h-0 flex-1 pt-3">

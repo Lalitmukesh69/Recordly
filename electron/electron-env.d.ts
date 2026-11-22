@@ -703,6 +703,8 @@ interface Window {
 			error?: string;
 		}>;
 		openAudioFilePicker: () => Promise<{ success: boolean; path?: string; canceled?: boolean }>;
+		approveAudioFilePath: (filePath: string) => Promise<{ success: boolean }>;
+		getPathForFile: (file: File) => string;
 		openWhisperExecutablePicker: () => Promise<{
 			success: boolean;
 			path?: string;

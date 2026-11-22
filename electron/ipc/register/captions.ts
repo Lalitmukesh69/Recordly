@@ -112,6 +112,14 @@ export function registerCaptionHandlers() {
 		}
 	});
 
+	ipcMain.handle("approve-audio-file-path", async (_, filePath: string) => {
+		if (typeof filePath === "string" && filePath.trim().length > 0) {
+			approveUserPath(filePath);
+			return { success: true };
+		}
+		return { success: false };
+	});
+
 	ipcMain.handle("open-whisper-executable-picker", async () => {
 		try {
 			const result = await dialog.showOpenDialog({

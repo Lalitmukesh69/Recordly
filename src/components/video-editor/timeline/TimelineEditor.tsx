@@ -109,7 +109,11 @@ export interface TimelineEditorHandle {
 	suggestZooms: () => void;
 	splitClip: () => void;
 	addAnnotation: (trackIndex?: number) => void;
-	addAudio: (trackIndex?: number) => Promise<void>;
+	addAudio: (
+		trackIndex?: number,
+		externalAudioPath?: string,
+		dropTimeMs?: number,
+	) => Promise<void>;
 	keyframes: { id: string; time: number }[];
 }
 

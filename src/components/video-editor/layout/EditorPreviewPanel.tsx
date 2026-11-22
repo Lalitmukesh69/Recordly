@@ -6,6 +6,7 @@ import {
 	Crop,
 	MagicWand,
 	MagnifyingGlassPlus,
+	MusicNotes,
 	Pause,
 	Play,
 	Plus,
@@ -297,6 +298,15 @@ export function EditorPreviewPanel(props: Props) {
 						title={t("editor.toolbar.splitClip")}
 					>
 						<Scissors className="h-4 w-4" />
+					</Button>
+					<Button
+						onClick={() => timelineRef.current?.addAudio()}
+						variant="ghost"
+						size="icon"
+						className="h-9 w-9"
+						title={t("timeline.audio.label", "Add Audio")}
+					>
+						<MusicNotes className="h-4 w-4" />
 					</Button>
 				</div>
 

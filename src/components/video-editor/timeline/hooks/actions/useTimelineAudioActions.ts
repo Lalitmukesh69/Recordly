@@ -13,6 +13,7 @@ interface TimelineAudioActionsDeps {
 	openFilePicker: () => Promise<AudioFilePickerResult | null | undefined>;
 	probeAudioDurationMs: (audioPath: string) => Promise<number>;
 	reportError: (title: string, description: string) => void;
+	approveAudioPath?: (audioPath: string) => Promise<unknown>;
 }
 
 interface UseTimelineAudioActionsParams {
@@ -33,7 +34,11 @@ interface UseTimelineAudioActionsParams {
 }
 
 async function defaultOpenFilePicker(): Promise<AudioFilePickerResult | null | undefined> {
-	return window.electronAPI.openAudioFilePicker();
+	return window.electronAPI?.openAudioFilePicker?.();
+}
+
+async function defaultApproveAudioPath(audioPath: string): Promise<unknown> {
+	return window.electronAPI?.approveAudioFilePath?.(audioPath);
 }
 
 async function defaultProbeAudioDurationMs(audioPath: string): Promise<number> {
@@ -73,6 +78,7 @@ function buildTimelineAudioActionsDeps(
 		openFilePicker: overrides?.openFilePicker ?? defaultOpenFilePicker,
 		probeAudioDurationMs: overrides?.probeAudioDurationMs ?? defaultProbeAudioDurationMs,
 		reportError: overrides?.reportError ?? timelineNotifications.error,
+		approveAudioPath: overrides?.approveAudioPath ?? defaultApproveAudioPath,
 	};
 }
 
@@ -87,17 +93,26 @@ export function useTimelineAudioActions({
 	const deps = useMemo(() => buildTimelineAudioActionsDeps(depsOverrides), [depsOverrides]);
 
 	const handleAddAudio = useCallback(
-		async (preferredTrackIndex?: number) => {
+		async (
+			preferredTrackIndex?: number,
+			externalAudioPath?: string,
+			dropTimeMs?: number,
+		) => {
 			if (!videoDuration || videoDuration === 0 || totalMs === 0 || !onAudioAdded) {
 				return;
 			}
 
-			const result = await deps.openFilePicker();
-			if (!result?.success || !result.path) {
-				return;
+			let audioPath = externalAudioPath;
+			if (!audioPath) {
+				const result = await deps.openFilePicker();
+				if (!result?.success || !result.path) {
+					return;
+				}
+				audioPath = result.path;
+			} else if (deps.approveAudioPath) {
+				await deps.approveAudioPath(audioPath);
 			}
 
-			const audioPath = result.path;
 			const audioDurationMs = await deps.probeAudioDurationMs(audioPath);
 			if (audioDurationMs <= 0) {
 				deps.reportError(
@@ -107,13 +122,13 @@ export function useTimelineAudioActions({
 				return;
 			}
 
-			const startPos = Math.max(0, Math.min(currentTimeMs, totalMs));
+			const targetTime =
+				typeof dropTimeMs === "number" && Number.isFinite(dropTimeMs)
+					? dropTimeMs
+					: currentTimeMs;
+			let startPos = Math.max(0, Math.min(targetTime, totalMs));
 			if (totalMs - startPos <= 0) {
-				deps.reportError(
-					"Cannot place audio here",
-					"There is no remaining space at the current playhead position.",
-				);
-				return;
+				startPos = 0;
 			}
 
 			const placement = resolveAudioPlacement({
