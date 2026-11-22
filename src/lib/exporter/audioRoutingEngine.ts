@@ -21,6 +21,7 @@ export interface ResolvedAudioTrack {
 		startMs: number;
 		endMs: number;
 	};
+	sourceStartMs?: number;
 }
 
 export interface ResolvedAudioPlan {
@@ -81,6 +82,7 @@ export function buildResolvedAudioPlan(input: {
 			startMs: Math.max(0, region.startMs),
 			endMs: Math.max(0, region.endMs),
 		},
+		sourceStartMs: Math.max(0, region.sourceStartMs ?? 0),
 	}));
 
 	for (const audioPath of playbackPaths) {

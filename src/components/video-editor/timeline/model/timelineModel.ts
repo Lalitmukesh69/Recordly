@@ -87,16 +87,21 @@ export function buildTimelineItems(params: {
 		variant: "annotation",
 	}));
 
-	const audios: TimelineRenderItem[] = audioRegions.map((region) => ({
-		id: region.id,
-		rowId: getAudioTrackRowId(region.trackIndex ?? 0),
-		span: { start: region.startMs, end: region.endMs },
-		label: getAudioLabel(region),
-		audioPath: region.audioPath,
-		audioGain: region.volume,
-		audioNormalize: Boolean(region.normalize),
-		variant: "audio",
-	}));
+	const audios: TimelineRenderItem[] = audioRegions.map((region) => {
+		const sourceStart = Math.max(0, region.sourceStartMs ?? 0);
+		const duration = Math.max(0, region.endMs - region.startMs);
+		return {
+			id: region.id,
+			rowId: getAudioTrackRowId(region.trackIndex ?? 0),
+			span: { start: region.startMs, end: region.endMs },
+			sourceSpan: { start: sourceStart, end: sourceStart + duration },
+			label: getAudioLabel(region),
+			audioPath: region.audioPath,
+			audioGain: region.volume,
+			audioNormalize: Boolean(region.normalize),
+			variant: "audio",
+		};
+	});
 
 	const captions: TimelineRenderItem[] = captionCues.map((cue) => ({
 		id: cue.id,

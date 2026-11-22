@@ -564,6 +564,7 @@ export interface AudioRegion {
 	volume: number;
 	normalize?: boolean;
 	trackIndex?: number;
+	sourceStartMs?: number;
 }
 
 export interface CaptionCue {

@@ -35,6 +35,7 @@ import type { AppLocale } from "../../i18n/config";
 import { SUPPORTED_LOCALES } from "../../i18n/config";
 import { AnnotationSettingsPanel } from "./AnnotationSettingsPanel";
 import CaptionListPanel from "./CaptionListPanel";
+import { useTimelineAudioPeaks } from "./timeline/hooks/useTimelineAudioPeaks";
 import type { CaptionRetimeSpan } from "./captionOps";
 import {
 	CURSOR_MOTION_PRESETS,
@@ -446,8 +447,12 @@ interface SettingsPanelProps {
 	selectedAudioId?: string | null;
 	selectedAudioVolume?: number | null;
 	selectedAudioNormalize?: boolean | null;
+	selectedAudioSourceStartMs?: number | null;
+	selectedAudioDurationMs?: number | null;
+	selectedAudioPath?: string | null;
 	onAudioVolumeChange?: (volume: number) => void;
 	onAudioNormalizeChange?: (normalize: boolean) => void;
+	onAudioSourceStartMsChange?: (sourceStartMs: number) => void;
 	onAudioDelete?: (id: string) => void;
 	shadowIntensity?: number;
 	onShadowChange?: (intensity: number) => void;
@@ -879,6 +884,13 @@ function CursorStylePreview({
 	);
 }
 
+function formatAudioTimecode(ms: number): string {
+	const totalSecs = Math.max(0, Math.floor(ms / 1000));
+	const mins = Math.floor(totalSecs / 60);
+	const secs = totalSecs % 60;
+	return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
 export function SettingsPanel({
 	accountUser = null,
 	onShowOnboarding,
@@ -904,8 +916,12 @@ export function SettingsPanel({
 	selectedAudioId,
 	selectedAudioVolume,
 	selectedAudioNormalize,
+	selectedAudioSourceStartMs,
+	selectedAudioDurationMs,
+	selectedAudioPath,
 	onAudioVolumeChange,
 	onAudioNormalizeChange,
+	onAudioSourceStartMsChange,
 	onAudioDelete,
 	shadowIntensity = 0.67,
 	onShadowChange,
@@ -1023,6 +1039,8 @@ export function SettingsPanel({
 	const { openConfig: openShortcutsConfig } = useShortcuts();
 	const [internalActiveEffectSection] = useState<EditorEffectSection>("scene");
 	const activeEffectSection = activeEffectSectionProp ?? internalActiveEffectSection;
+	const { peaks: selectedAudioPeaks } = useTimelineAudioPeaks(selectedAudioPath);
+	const totalTrackDurationMs = selectedAudioPeaks?.durationMs ?? 0;
 	const removeBackgroundStateRef = useRef<{
 		aspectRatio: AspectRatio;
 		padding: Padding;
@@ -2683,7 +2701,7 @@ export function SettingsPanel({
 						variant="ghost"
 						type="button"
 						onClick={() => {
-							onAudioVolumeChange?.(1);
+							onAudioVolumeChange?.(0.25);
 							onAudioNormalizeChange?.(false);
 						}}
 					>
@@ -2692,13 +2710,73 @@ export function SettingsPanel({
 				</div>
 				<SliderControl
 					label={tSettings("audio.volume", "Volume")}
-					value={selectedAudioVolume ?? 1}
+					value={selectedAudioVolume ?? 0.25}
 					min={0}
 					max={1}
 					step={0.01}
 					onChange={(v) => onAudioVolumeChange?.(v)}
-					formatValue={(v) => `${Math.round(v * 100)}%`}
+					formatValue={(v) => {
+						const pct = Math.round(v * 100);
+						if (pct === 0) return tSettings("audio.muted", "Muted (0%)");
+						if (pct <= 35)
+							return `${pct}% (${tSettings("audio.backgroundShort", "Background")})`;
+						return `${pct}%`;
+					}}
 				/>
+				<div className="flex items-center gap-1.5 pt-0.5">
+					<Button
+						type="button"
+						size="sm"
+						variant={
+							Math.abs((selectedAudioVolume ?? 0.25) - 0.25) < 0.02
+								? "secondary"
+								: "outline"
+						}
+						className="h-6 text-[11px] px-2 font-medium"
+						onClick={() => onAudioVolumeChange?.(0.25)}
+					>
+						{tSettings("audio.presetBackground", "25% Background")}
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant={
+							Math.abs((selectedAudioVolume ?? 0.25) - 0.5) < 0.02
+								? "secondary"
+								: "outline"
+						}
+						className="h-6 text-[11px] px-2 font-medium"
+						onClick={() => onAudioVolumeChange?.(0.5)}
+					>
+						50%
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant={
+							Math.abs((selectedAudioVolume ?? 0.25) - 1.0) < 0.02
+								? "secondary"
+								: "outline"
+						}
+						className="h-6 text-[11px] px-2 font-medium"
+						onClick={() => onAudioVolumeChange?.(1.0)}
+					>
+						100%
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant={(selectedAudioVolume ?? 0.25) === 0 ? "secondary" : "ghost"}
+						className="h-6 text-[11px] px-2 font-medium text-muted-foreground ml-auto"
+						onClick={() =>
+							onAudioVolumeChange?.((selectedAudioVolume ?? 0.25) === 0 ? 0.25 : 0)
+						}
+					>
+						{(selectedAudioVolume ?? 0.25) === 0
+							? tSettings("audio.unmute", "Unmute")
+							: tSettings("audio.mute", "Mute")}
+					</Button>
+				</div>
 				<div className="flex items-center justify-between py-2">
 					<span className="text-xs text-muted-foreground">
 						{tSettings("audio.normalize", "Normalize")}
@@ -2709,6 +2787,80 @@ export function SettingsPanel({
 						onCheckedChange={(v) => onAudioNormalizeChange?.(v)}
 					/>
 				</div>
+				{totalTrackDurationMs > (selectedAudioDurationMs ?? 0) && (
+					<div className="flex flex-col gap-2 pt-2 border-t border-border/40">
+						<div className="flex items-center justify-between">
+							<span className="text-xs font-medium text-foreground">
+								{tSettings("audio.songSection", "Start playing from")}
+							</span>
+							<span className="text-xs tabular-nums text-muted-foreground font-mono">
+								{formatAudioTimecode(selectedAudioSourceStartMs ?? 0)} /{" "}
+								{formatAudioTimecode(totalTrackDurationMs)}
+							</span>
+						</div>
+						<SliderControl
+							label=""
+							value={selectedAudioSourceStartMs ?? 0}
+							min={0}
+							max={Math.max(
+								0,
+								totalTrackDurationMs -
+									Math.min(totalTrackDurationMs, selectedAudioDurationMs ?? 0),
+							)}
+							step={500}
+							onChange={(v) => onAudioSourceStartMsChange?.(v)}
+							formatValue={(v) => formatAudioTimecode(v)}
+						/>
+						<div className="flex items-center gap-1.5 pt-0.5">
+							<Button
+								type="button"
+								size="sm"
+								variant={
+									(selectedAudioSourceStartMs ?? 0) === 0
+										? "secondary"
+										: "outline"
+								}
+								className="h-6 text-[11px] px-2 font-medium"
+								onClick={() => onAudioSourceStartMsChange?.(0)}
+							>
+								{tSettings("audio.startFromBeginning", "Beginning (0:00)")}
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="h-6 text-[11px] px-2 font-medium"
+								onClick={() =>
+									onAudioSourceStartMsChange?.(
+										Math.max(0, (selectedAudioSourceStartMs ?? 0) - 10000),
+									)
+								}
+							>
+								-10s
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="h-6 text-[11px] px-2 font-medium"
+								onClick={() =>
+									onAudioSourceStartMsChange?.(
+										Math.min(
+											Math.max(
+												0,
+												totalTrackDurationMs -
+													(selectedAudioDurationMs ?? 0),
+											),
+											(selectedAudioSourceStartMs ?? 0) + 10000,
+										),
+									)
+								}
+							>
+								+10s
+							</Button>
+						</div>
+					</div>
+				)}
 			</section>
 		);
 

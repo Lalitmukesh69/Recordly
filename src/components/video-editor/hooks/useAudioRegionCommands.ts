@@ -47,14 +47,14 @@ export function useAudioRegionCommands({
 	);
 
 	const handleAudioAdded = useCallback(
-		(span: Span, audioPath: string, trackIndex?: number) => {
+		(span: Span, audioPath: string, trackIndex?: number, initialVolume: number = 0.25) => {
 			const id = `audio-${nextAudioIdRef.current++}`;
 			const newRegion: AudioRegion = {
 				id,
 				startMs: Math.round(span.start),
 				endMs: Math.round(span.end),
 				audioPath,
-				volume: 1,
+				volume: Math.max(0, Math.min(1, initialVolume)),
 				normalize: false,
 				trackIndex,
 			};
@@ -85,21 +85,44 @@ export function useAudioRegionCommands({
 					? Math.max(0, Math.floor(trackIndex))
 					: undefined;
 			setAudioRegions((current) =>
+				current.map((region) => {
+					if (region.id !== id) return region;
+					const newStart = Math.round(span.start);
+					const newEnd = Math.round(span.end);
+					const isMove = newStart - region.startMs === newEnd - region.endMs;
+					let sourceStartMs = region.sourceStartMs ?? 0;
+					if (!isMove) {
+						const startDelta = newStart - region.startMs;
+						sourceStartMs = Math.max(0, sourceStartMs + startDelta);
+					}
+					return {
+						...region,
+						startMs: newStart,
+						endMs: newEnd,
+						sourceStartMs,
+						...(normalizedTrackIndex === undefined
+							? {}
+							: { trackIndex: normalizedTrackIndex }),
+					};
+				}),
+			);
+		},
+		[setAudioRegions],
+	);
+
+	const handleAudioSourceStartMsChange = useCallback(
+		(sourceStartMs: number) => {
+			if (!selectedAudioId || !Number.isFinite(sourceStartMs)) return;
+			const nextSourceStartMs = Math.max(0, Math.round(sourceStartMs));
+			setAudioRegions((current) =>
 				current.map((region) =>
-					region.id === id
-						? {
-								...region,
-								startMs: Math.round(span.start),
-								endMs: Math.round(span.end),
-								...(normalizedTrackIndex === undefined
-									? {}
-									: { trackIndex: normalizedTrackIndex }),
-							}
+					region.id === selectedAudioId
+						? { ...region, sourceStartMs: nextSourceStartMs }
 						: region,
 				),
 			);
 		},
-		[setAudioRegions],
+		[selectedAudioId, setAudioRegions],
 	);
 
 	const handleAudioVolumeChange = useCallback(
@@ -142,5 +165,6 @@ export function useAudioRegionCommands({
 		handleAudioVolumeChange,
 		handleAudioDelete,
 		handleAudioNormalizeChange,
+		handleAudioSourceStartMsChange,
 	};
 }

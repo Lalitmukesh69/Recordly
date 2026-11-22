@@ -257,6 +257,13 @@
 		"systemLabel": "Source System",
 		"micLabel": "Source Mic",
 		"mixedLabel": "Source",
-		"deleteRegion": "Delete Audio"
+		"deleteRegion": "Delete Audio",
+		"presetBackground": "25% Background",
+		"muted": "Muted (0%)",
+		"backgroundShort": "Background",
+		"mute": "Mute",
+		"unmute": "Unmute",
+		"songSection": "Start playing from",
+		"startFromBeginning": "Beginning (0:00)"
 	}
 }
