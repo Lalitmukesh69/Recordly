@@ -16,28 +16,70 @@ import type {
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import path from "node:path";
+import fs from "node:fs";
 
 const execFileAsync = promisify(execFile);
 
-async function probeVideoDurationMs(videoPath: string): Promise<number | null> {
+async function probeVideoMetadata(videoPath: string): Promise<{ durationMs: number | null; rotation: number | null }> {
   try {
     const { stdout } = await execFileAsync("ffprobe", [
       "-v",
       "error",
       "-show_entries",
-      "format=duration",
+      "stream_side_data=rotation:stream=rotation:format=duration",
       "-of",
-      "default=noprint_wrappers=1:nokey=1",
+      "json",
       videoPath,
     ]);
-    const sec = parseFloat(stdout.trim());
-    if (Number.isFinite(sec) && sec > 0) {
-      return Math.round(sec * 1000);
+    const json = JSON.parse(stdout);
+    const durationSec = parseFloat(json.format?.duration);
+    const durationMs = Number.isFinite(durationSec) && durationSec > 0 ? Math.round(durationSec * 1000) : null;
+    let rotation: number | null = null;
+    for (const s of json.streams || []) {
+      if (typeof s.rotation === "number") rotation = s.rotation;
+      for (const sd of s.side_data_list || []) {
+        if (typeof sd.rotation === "number") rotation = sd.rotation;
+      }
     }
+    return { durationMs, rotation };
   } catch {
-    // ffprobe fallback
+    return { durationMs: null, rotation: null };
   }
-  return null;
+}
+
+async function normalizeVideoRotationIfNeeded(videoPath: string): Promise<string> {
+  const { rotation } = await probeVideoMetadata(videoPath);
+  if (!rotation || rotation === 0) return videoPath;
+
+  // Video has container-level display matrix rotation (common in tablet/mobile screen recordings).
+  // WebDemuxer + WebCodecs decoder strips container matrix during export, while HTML5 <video> auto-rotates in UI preview.
+  // Normalize the video so rotation is physically baked into the pixels.
+  const parsed = path.parse(videoPath);
+  const normalizedPath = path.join(parsed.dir, `${parsed.name}.normalized${parsed.ext}`);
+  if (fs.existsSync(normalizedPath)) {
+    return normalizedPath;
+  }
+  try {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i",
+      videoPath,
+      "-c:v",
+      "libx264",
+      "-preset",
+      "fast",
+      "-crf",
+      "17",
+      "-c:a",
+      "copy",
+      normalizedPath,
+    ]);
+    return normalizedPath;
+  } catch (err) {
+    console.warn("[ReportTools] Failed to normalize video rotation:", err);
+    return videoPath;
+  }
 }
 
 export function registerReportTools(server: McpServer) {
@@ -114,8 +156,14 @@ export function registerReportTools(server: McpServer) {
       try {
         const data = await loadProject(projectPath);
 
-        // 1. Determine total source duration
-        let totalDurationMs = await probeVideoDurationMs(data.videoPath);
+        // 1. Determine total source duration and normalize rotation if needed
+        const normalizedVideoPath = await normalizeVideoRotationIfNeeded(data.videoPath);
+        if (normalizedVideoPath !== data.videoPath) {
+          data.videoPath = normalizedVideoPath;
+        }
+
+        const meta = await probeVideoMetadata(data.videoPath);
+        let totalDurationMs = meta.durationMs;
         if (!totalDurationMs || totalDurationMs <= 0) {
           const maxCutEnd = Math.max(0, ...cuts.map((c) => c.endMs));
           const maxClick = Math.max(0, ...clicks.map((c) => c.timestampMs));
@@ -269,7 +317,10 @@ export function registerReportTools(server: McpServer) {
         if (canvas) {
           if (canvas.wallpaper) data.editor.wallpaper = canvas.wallpaper;
           if (canvas.backgroundBlur !== undefined) data.editor.backgroundBlur = canvas.backgroundBlur;
-          if (canvas.shadowIntensity !== undefined) data.editor.shadowIntensity = canvas.shadowIntensity;
+          if (canvas.shadowIntensity !== undefined) {
+            data.editor.shadowIntensity =
+              canvas.shadowIntensity > 1 ? canvas.shadowIntensity / 100 : canvas.shadowIntensity;
+          }
           if (canvas.borderRadius !== undefined) data.editor.borderRadius = canvas.borderRadius;
           if (canvas.aspectRatio) data.editor.aspectRatio = canvas.aspectRatio;
         }
